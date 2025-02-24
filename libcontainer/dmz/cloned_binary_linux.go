@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/opencontainers/runc/libcontainer/system"
+	"github.com/opencontainers/runc/libcontainer/system/kernelversion"
 )
 
 type SealFunc func(**os.File) error
@@ -47,8 +48,15 @@ func sealMemfd(f **os.File) error {
 	// errors because they are not needed and we want to continue
 	// to work on older kernels.
 	fd := (*f).Fd()
+
 	// F_SEAL_FUTURE_WRITE -- Linux 5.1
-	_, _ = unix.FcntlInt(fd, unix.F_ADD_SEALS, unix.F_SEAL_FUTURE_WRITE)
+	// It works correctly from Linux 5.5
+	// https://github.com/torvalds/linux/commit/05d351102dbe4e103d6bdac18b1122cd3cd04925
+	linux550 := kernelversion.KernelVersion{Kernel: 5, Major: 5}
+	ok, _ := kernelversion.GreaterEqualThan(linux550)
+	if ok {
+		_, _ = unix.FcntlInt(fd, unix.F_ADD_SEALS, unix.F_SEAL_FUTURE_WRITE)
+	}
 	// F_SEAL_EXEC -- Linux 6.3
 	const F_SEAL_EXEC = 0x20 //nolint:revive // this matches the unix.* name
 	_, _ = unix.FcntlInt(fd, unix.F_ADD_SEALS, F_SEAL_EXEC)
